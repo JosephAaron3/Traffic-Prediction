@@ -2,45 +2,54 @@ import tensorflow as tf
 import glob
 import pandas as pd
 import matplotlib.pyplot as plt
+import models
 
-#Load data files
-df = pd.read_csv('../Data/CaliPeMS/I5-N-3/2015.csv')
+#Load data files and transform to multidimensional array
+data_filenames = ['../Data/CaliPeMS/I5-N-3/2015.csv',
+                  '../Data/CaliPeMS/I5-N-3/2016.csv',
+                  '../Data/CaliPeMS/I5-S-3/2015.csv',
+                  '../Data/CaliPeMS/I5-S-3/2016.csv',
+                  '../Data/CaliPeMS/I5-S-4/2015.csv',
+                  '../Data/CaliPeMS/I5-S-4/2016.csv']
+df_train = pd.read_csv(data_filenames[0], nrows = 54000, index_col = (0, 1))
+df_val = pd.read_csv(data_filenames[1], nrows = 54000, index_col = (0, 1))
+df_test = pd.read_csv(data_filenames[2], nrows = 50000, index_col = (0, 1))
+vector_df_train = df_train.values.reshape(len(df_train.index.levels[0]), len(df_train.index.levels[1]), -1).swapaxes(0, 1)
+vector_df_val = df_val.values.reshape(len(df_val.index.levels[0]), len(df_val.index.levels[1]), -1).swapaxes(0, 1)
+vector_df_test = df_test.values.reshape(len(df_test.index.levels[0]), len(df_test.index.levels[1]), -1).swapaxes(0, 1)
 
-#Split
-split_index = int(0.8*len(df))
-val_split_index = int(0.8*split_index)
-features = ['timestep', 'road_section', 'density', 'speed']
-target = 'flow'
+#Split (80/10/10 train/validation/test)
+#val_split_index = int(0.8*len(df))
+#test_split_index = int(0.9*len(df))
+#features = ['timestep', 'road_section', 'density', 'speed']
+#target = 'flow'
+df_train = tf.data.Dataset.from_tensor_slices((vector_df_train[:,:,1:], vector_df_train[:,:,0]))
 
-df_train = tf.data.Dataset.from_tensor_slices((tf.cast(df.loc[:val_split_index, features].values, tf.int32),
-                                              tf.cast(df.loc[:val_split_index, target].values, tf.int32)))
+df_val = tf.data.Dataset.from_tensor_slices((vector_df_val[:,:,1:], vector_df_val[:,:,0]))
 
-df_validate = tf.data.Dataset.from_tensor_slices((tf.cast(df.loc[val_split_index:split_index, features].values, tf.int32),
-                                              tf.cast(df.loc[val_split_index:split_index, target].values, tf.int32)))
+df_test = tf.data.Dataset.from_tensor_slices((vector_df_test[:,:,1:], vector_df_test[:,:,0]))
 
-df_test = tf.data.Dataset.from_tensor_slices((tf.cast(df.loc[split_index:, features].values, tf.int32),
-                                              tf.cast(df.loc[split_index:, target].values, tf.int32)))
+#Pre-processing
+# def map_fn(image, label):
+#     img.set_shape([2,100,1])
+#     lbl.set_shape([256,256,1])
+#     return img, lbl
 
-df_train = df_train.shuffle(split_index)
-df_validate = df_validate.shuffle(split_index-val_split_index)
-df_test = df_test.shuffle(len(df)-split_index)
+# #Map datasets to pre-processing function
+# train_ds = train_ds.map(map_fn)
+# validate_ds = validate_ds.map(map_fn)
+# test_ds = test_ds.map(map_fn)
 
 
 #Create model
-input_layer = tf.keras.layers.Input(shape=(4))
-l1 = tf.keras.layers.Dense(512)(input_layer)
-l1a = tf.keras.layers.LeakyReLU(alpha=0.001)(l1)
-l2 = tf.keras.layers.Dense(512)(l1a)
-l2a = tf.keras.layers.LeakyReLU(alpha=0.001)(l2)
-output_layer = tf.keras.layers.Dense(1)(l2a)
-model = tf.keras.Model(inputs = input_layer, outputs = output_layer)
+model = models.basic((2000,2))
 model.summary()
 
 #Compile model
 model.compile(optimizer = 'Adam', loss = 'mse', metrics = ['mae'])
 
 #Train model
-history = model.fit(df_train.batch(128), epochs = 2, validation_data = df_validate.batch(128))
+history = model.fit(df_train.batch(1), epochs = 50, validation_data = df_val.batch(1))
 
 #Evaluate model
 plt.plot(history.history['mae'])
@@ -50,12 +59,4 @@ plt.ylabel('MAE')
 plt.xlabel('Epoch')
 plt.legend(['Training set', 'Validation set'], loc='upper right')
 plt.show()
-model.evaluate(df_test.batch(16), verbose=2)
-
-# from tqdm import tqdm
-# #Calculate prediction score
-# scores = []
-# data, label = next(iter(df_test.batch(567000)))
-# pred = model.predict(data).squeeze()
-# scores = ((pred-label)**2).numpy()
-# print("Mean squared error:", sum(scores)/len(scores))
+print("Model performance:", model.evaluate(df_test.batch(1), verbose=2))
