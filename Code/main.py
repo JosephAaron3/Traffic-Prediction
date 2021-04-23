@@ -3,7 +3,9 @@ import glob
 import pandas as pd
 import matplotlib.pyplot as plt
 from models import models
-from load_data import get_vectorized_data
+import numpy as np
+from load_data import get_vectorized_data, get_vectorized_data_one
+from tensorflow.keras.callbacks import LearningRateScheduler
 
 #Semantic parameters
 dependent_var = 'flow'
@@ -18,21 +20,29 @@ data_filenames = ['../Data/CaliPeMS/I5-N-3/2015.csv',
                   '../Data/CaliPeMS/I5-S-4/2015.csv',
                   '../Data/CaliPeMS/I5-S-4/2016.csv'] #Only using one dataset for now
 
-X_train, y_train, X_val, y_val, X_test, y_test = get_vectorized_data(data_filenames[0], 12, 3, 'flow')
+#X_train, y_train, X_val, y_val, X_test, y_test = get_vectorized_data(data_filenames[0], pretime, posttime, dependent_var)
+X_train, y_train, X_val, y_val, X_test, y_test = get_vectorized_data_one(data_filenames[0], pretime, posttime, dependent_var)
 df_train = tf.data.Dataset.from_tensor_slices((X_train, y_train))
 df_val = tf.data.Dataset.from_tensor_slices((X_val, y_val))
 df_test = tf.data.Dataset.from_tensor_slices((X_test, y_test))
 
 #Create model
 #model = models.MLP((27,12,3))
-model = models.CNN((27,12,3))
+#model = models.CNN((27,12,3))
+model = models.LSTM((12,3))
 model.summary()
 
 #Compile model
-model.compile(optimizer = 'Adam', loss = 'mse', metrics = ['mae'])
+model.compile(optimizer = 'adam', loss = 'mse', metrics = ['mae'])
+
+def step_decay_schedule(initial_lr=1e-4, decay_factor=0.75, step_size=10):
+    def schedule(epoch):
+        return initial_lr * (decay_factor ** np.floor(epoch/step_size))
+    return LearningRateScheduler(schedule)
+lr_sched = step_decay_schedule(initial_lr=1e-2, decay_factor=0.9, step_size=3)
 
 #Train model
-history = model.fit(df_train.batch(64), epochs = 10, validation_data = df_val.batch(64))
+history = model.fit(df_train.batch(128), epochs = 50, callbacks=[lr_sched], validation_data = df_val.batch(128))
 
 #Evaluate model
 plt.plot(history.history['mae'])

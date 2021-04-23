@@ -1,6 +1,7 @@
 import tensorflow as tf
 
 lrelu_alp = 0.001
+n_detectors = 27
 
 def MLP(shape):
     input_layer = tf.keras.layers.Input(shape=shape)
@@ -10,9 +11,8 @@ def MLP(shape):
     l2 = tf.keras.layers.Dense(1024)(d1)
     l2a = tf.keras.layers.LeakyReLU(alpha=lrelu_alp)(l2)
     f1 = tf.keras.layers.Flatten()(l2a)
-    output_layer = tf.keras.layers.Dense(27)(f1)
+    output_layer = tf.keras.layers.Dense(n_detectors)(f1)
     return tf.keras.Model(inputs = input_layer, outputs = output_layer)
-
 
 def res_block(prev, n, absfirst = False, first = False):
     if first:
@@ -47,5 +47,11 @@ def CNN(shape):
     l2 = tf.keras.layers.Dense(1024)(d1)
     l2a = tf.keras.layers.LeakyReLU(alpha=0.001)(l2)
     f1 = tf.keras.layers.Flatten()(l2a)
-    output_layer = tf.keras.layers.Dense(27)(f1)
+    output_layer = tf.keras.layers.Dense(n_detectors)(f1)
+    return tf.keras.Model(inputs = input_layer, outputs = output_layer)
+
+def LSTM(shape):
+    input_layer = tf.keras.layers.Input(shape=shape)
+    rnn_layer = tf.keras.layers.LSTM(40)(input_layer)
+    output_layer = tf.keras.layers.Dense(1)(rnn_layer)
     return tf.keras.Model(inputs = input_layer, outputs = output_layer)
