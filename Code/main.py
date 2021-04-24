@@ -10,23 +10,23 @@ from load_data import get_vectorized_data
 dependent_var = 'flow'
 pretime = 12 #How many timesteps in the past to predict from
 posttime = 3 #How many timesteps in the future to predict
-model_type = 'LSTM'
+model_type = 'CNN_LSTM'
 
 #Load, transform and split data
-X_train, y_train, X_val, y_val, X_test, y_test = get_vectorized_data(model_type, pretime, posttime, dependent_var)
+X_train, y_train, X_val, y_val, X_test, y_test = get_vectorized_data(model_type, pretime, posttime, dependent_var, lim = 0.5)
 df_train = tf.data.Dataset.from_tensor_slices((X_train, y_train))
 df_val = tf.data.Dataset.from_tensor_slices((X_val, y_val))
 df_test = tf.data.Dataset.from_tensor_slices((X_test, y_test))
 
 #Create model
 #model = models.model_selector(model_type)
-model = models.LSTM((12,3))
+model = models.CNN_LSTM((27,3))
 model.summary()
 
 #Compile and train model
-model.compile(optimizer = 'adam', loss = 'mse', metrics = ['mae'])
-lr_sched = step_decay_schedule(initial_lr=1e-2, decay_factor=0.9, step_size=2)
-history = model.fit(df_train.batch(64), epochs = 50, callbacks=[lr_sched], validation_data = df_val.batch(64))
+model.compile(optimizer = tf.keras.optimizers.Adam(learning_rate = 1e-2), loss = 'mse', metrics = ['mae'])
+#lr_sched = step_decay_schedule(initial_lr=1e-2, decay_factor=0.9, step_size=2)
+history = model.fit(df_train.batch(64), epochs = 50, validation_data = df_val.batch(64))
 
 #Evaluate model
 plt.plot(history.history['mae'])
